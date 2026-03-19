@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<style>
+*{box-sizing:border-box}
+body{
+	margin:0;
+	min-height:100vh;
+	font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+	background:radial-gradient(circle at 30% 10%,#213a5a,#0f1725 60%,#0b0f16);
+	color:#e6edf5;
+	display:flex;
+	justify-content:center;
+	align-items:center;
+	padding:16px;
+}
+.panel{
+	width:min(520px,100%);
+	background:rgba(21,31,48,.84);
+	border:1px solid rgba(147,173,204,.28);
+	border-radius:20px;
+	padding:20px;
+	box-shadow:0 16px 40px rgba(0,0,0,.35);
+	text-align:center;
+}
+h1{font-size:1.2rem;margin:0 0 8px}
+.hint{margin:0 0 14px;color:#b6c6d9;font-size:.95rem}
+.status{font-size:.95rem;margin-bottom:14px}
+.ok{color:#57e389}.bad{color:#ff8383}
+.joystick-wrap{display:flex;justify-content:center;align-items:center;margin:8px 0 14px}
+.joystick{
+	width:min(68vw,280px);
+	height:min(68vw,280px);
+	max-width:280px;
+	max-height:280px;
+	border-radius:50%;
+	border:2px solid rgba(179,204,234,.4);
+	background:radial-gradient(circle,#243a57 0%,#18263c 58%,#111a28 100%);
+	position:relative;
+	touch-action:none;
+}
+.knob{
+	width:34%;
+	height:34%;
+	border-radius:50%;
+	background:radial-gradient(circle,#86b9ff 0%,#3f7fd2 55%,#295896 100%);
+	position:absolute;
+	left:33%;
+	top:33%;
+	box-shadow:0 8px 20px rgba(0,0,0,.35);
+}
+.readout{display:flex;justify-content:space-between;gap:10px;font-size:.95rem;color:#d1deed}
+.chip{flex:1;background:rgba(70,95,128,.26);border:1px solid rgba(179,204,234,.25);border-radius:12px;padding:9px 10px}
+.servo{margin-top:18px;text-align:left}
+.servo-group{display:grid;gap:14px}
+.servo-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;color:#d1deed}
+.servo label{font-size:.95rem}
+.servo strong{font-size:1rem;color:#ffffff}
+.servo input[type=range]{width:100%;accent-color:#86b9ff}
+</style>
+</head>
+<body>
+<div class="panel">
+	<h1>Minitank joystick</h1>
+	<p class="hint">Nahoru jede dopředu, dolů couvá, do stran zatáčí nebo rotuje na místě.</p>
+	<div class="status">Spojení: <span id="state" class="bad">odpojeno</span></div>
+	<div class="joystick-wrap">
+		<div class="joystick" id="joy"><div class="knob" id="knob"></div></div>
+	</div>
+	<div class="readout">
+		<div class="chip">X: <span id="xVal">0</span></div>
+		<div class="chip">Y: <span id="yVal">0</span></div>
+	</div>
+	<div class="servo">
+		<div class="servo-group">
+			<div>
+				<div class="servo-head">
+					<label for="servoRange22">Servo IO22</label>
+					<strong><span id="servoVal22">90</span>°</strong>
+				</div>
+				<input id="servoRange22" type="range" min="0" max="180" step="1" value="90">
+			</div>
+			<div>
+				<div class="servo-head">
+					<label for="servoRange21">Servo IO21</label>
+					<strong><span id="servoVal21">90</span>°</strong>
+				</div>
+				<input id="servoRange21" type="range" min="0" max="180" step="1" value="90">
+			</div>
+		</div>
+	</div>
+</div>
+<script>
+const stateEl = document.getElementById('state');
+const joy = document.getElementById('joy');
+const knob = document.getElementById('knob');
+const xValEl = document.getElementById('xVal');
+const yValEl = document.getElementById('yVal');
+const servoControls = [
+	{
+		pin: 22,
+		rangeEl: document.getElementById('servoRange22'),
+		valueEl: document.getElementById('servoVal22'),
+		current: 90,
+		lastSent: -1,
+	},
+	{
+		pin: 21,
+		rangeEl: document.getElementById('servoRange21'),
+		valueEl: document.getElementById('servoVal21'),
+		current: 90,
+		lastSent: -1,
+	},
+];
+
+let ws;
+let currentX = 0;
+let currentY = 0;
+let lastSentX = 999;
+let lastSentY = 999;
+let activePointer = null;
+
+function connect() {
+	ws = new WebSocket(`ws://${location.host}/ws`);
+	ws.onopen = () => {
+		stateEl.textContent = 'připojeno';
+		stateEl.className = 'ok';
+		sendControl(true);
+	};
+	ws.onclose = () => {
+		stateEl.textContent = 'odpojeno';
+		stateEl.className = 'bad';
+		setTimeout(connect, 600);
+	};
+	ws.onerror = () => ws.close();
+}
+
+function sendControl(force=false) {
+	if (!ws || ws.readyState !== WebSocket.OPEN) return;
+	if (!force && currentX === lastSentX && currentY === lastSentY) return;
+	ws.send(`${currentX},${currentY}`);
+	lastSentX = currentX;
+	lastSentY = currentY;
+}
+
+function sendServo(control, force=false) {
+	if (!force && control.current === control.lastSent) return;
+	fetch(`/servo?pin=${control.pin}&angle=${control.current}`, { method: 'GET', cache: 'no-store' }).catch(() => {});
+	control.lastSent = control.current;
+}
+
+function setJoystick(x, y) {
+	currentX = Math.max(-100, Math.min(100, Math.round(x)));
+	currentY = Math.max(-100, Math.min(100, Math.round(y)));
+	xValEl.textContent = String(currentX);
+	yValEl.textContent = String(currentY);
+
+	const range = joy.clientWidth * 0.33;
+	const px = (currentX / 100) * range;
+	const py = -(currentY / 100) * range;
+	knob.style.transform = `translate(${px}px, ${py}px)`;
+}
+
+function pointerToJoystick(ev) {
+	const rect = joy.getBoundingClientRect();
+	const cx = rect.left + rect.width / 2;
+	const cy = rect.top + rect.height / 2;
+	let dx = ev.clientX - cx;
+	let dy = ev.clientY - cy;
+	const maxR = rect.width * 0.33;
+	const dist = Math.hypot(dx, dy);
+
+	if (dist > maxR) {
+		dx = (dx / dist) * maxR;
+		dy = (dy / dist) * maxR;
+	}
+
+	setJoystick((dx / maxR) * 100, (-dy / maxR) * 100);
+	sendControl(true);
+}
+
+servoControls.forEach(control => {
+	control.current = Number(control.rangeEl.value);
+	control.valueEl.textContent = String(control.current);
+	control.rangeEl.addEventListener('input', () => {
+		control.current = Number(control.rangeEl.value);
+		control.valueEl.textContent = String(control.current);
+		sendServo(control, true);
+	});
+});
+
+joy.addEventListener('pointerdown', ev => {
+	activePointer = ev.pointerId;
+	joy.setPointerCapture(ev.pointerId);
+	pointerToJoystick(ev);
+});
+
+joy.addEventListener('pointermove', ev => {
+	if (activePointer !== ev.pointerId) return;
+	pointerToJoystick(ev);
+});
+
+function releasePointer(ev) {
+	if (activePointer !== ev.pointerId) return;
+	activePointer = null;
+	setJoystick(0, 0);
+	sendControl(true);
+}
+
+joy.addEventListener('pointerup', releasePointer);
+joy.addEventListener('pointercancel', releasePointer);
+setInterval(() => {
+	const shouldKeepAlive = activePointer !== null || currentX !== 0 || currentY !== 0;
+	sendControl(shouldKeepAlive);
+}, 100);
+servoControls.forEach(control => sendServo(control, true));
+connect();
+</script>
+</body>
+</html>
