@@ -14,6 +14,10 @@ body{
 	justify-content:center;
 	align-items:center;
 	padding:16px;
+	user-select:none;
+	-webkit-user-select:none;
+	-webkit-touch-callout:none;
+	-webkit-tap-highlight-color:transparent;
 }
 .panel{
 	width:min(520px,100%);
@@ -24,10 +28,12 @@ body{
 	box-shadow:0 16px 40px rgba(0,0,0,.35);
 	text-align:center;
 }
-h1{font-size:1.2rem;margin:0 0 8px}
+.title-bar{display:flex;justify-content:center;align-items:center;gap:14px;margin:0 0 8px}
+h1{font-size:1.45rem;letter-spacing:.04em;margin:0}
+.status-dot{width:18px;height:18px;border-radius:50%;background:#ff5c70;box-shadow:0 0 0 6px rgba(255,92,112,.12),0 0 18px rgba(255,92,112,.35);transition:background .2s ease,box-shadow .2s ease}
+.status-dot.online{background:#57e389;box-shadow:0 0 0 6px rgba(87,227,137,.12),0 0 18px rgba(87,227,137,.35)}
+.status-dot.offline{background:#ff5c70;box-shadow:0 0 0 6px rgba(255,92,112,.12),0 0 18px rgba(255,92,112,.35)}
 .hint{margin:0 0 14px;color:#b6c6d9;font-size:.95rem}
-.status{font-size:.95rem;margin-bottom:14px}
-.ok{color:#57e389}.bad{color:#ff8383}
 .joystick-wrap{display:flex;justify-content:center;align-items:center;margin:8px 0 14px}
 .joystick{
 	width:min(68vw,280px);
@@ -39,6 +45,8 @@ h1{font-size:1.2rem;margin:0 0 8px}
 	background:radial-gradient(circle,#243a57 0%,#18263c 58%,#111a28 100%);
 	position:relative;
 	touch-action:none;
+	user-select:none;
+	-webkit-user-select:none;
 }
 .knob{
 	width:34%;
@@ -49,22 +57,63 @@ h1{font-size:1.2rem;margin:0 0 8px}
 	left:33%;
 	top:33%;
 	box-shadow:0 8px 20px rgba(0,0,0,.35);
+	pointer-events:none;
 }
 .readout{display:flex;justify-content:space-between;gap:10px;font-size:.95rem;color:#d1deed}
 .chip{flex:1;background:rgba(70,95,128,.26);border:1px solid rgba(179,204,234,.25);border-radius:12px;padding:9px 10px}
-.servo{margin-top:18px;text-align:left}
-.servo-group{display:grid;gap:14px}
-.servo-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;color:#d1deed}
-.servo label{font-size:.95rem}
-.servo strong{font-size:1rem;color:#ffffff}
-.servo input[type=range]{width:100%;accent-color:#86b9ff}
+.control-block{margin-top:18px;text-align:left}
+.control-group{display:grid;gap:14px}
+.servo-control.hidden{display:none}
+.control-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;color:#d1deed}
+.control-block label{font-size:.95rem}
+.control-block strong{font-size:1rem;color:#ffffff}
+.control-block input[type=range],.control-block input[type=text],.control-block input[type=password]{width:100%;accent-color:#86b9ff}
+.control-block input[type=text],.control-block input[type=password]{border:1px solid rgba(120,175,245,.32);border-radius:16px;background:linear-gradient(180deg,rgba(28,42,63,.98),rgba(13,21,33,.96));color:#f4f9ff;padding:14px 16px;font-size:1rem;font-weight:600;letter-spacing:.01em;box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 10px 24px rgba(2,8,16,.22);transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease,background .18s ease}
+.control-block input[type=text]::placeholder,.control-block input[type=password]::placeholder{color:rgba(198,215,236,.62);font-weight:500}
+.control-block input[type=text]:focus,.control-block input[type=password]:focus{outline:none;border-color:rgba(134,185,255,.82);background:linear-gradient(180deg,rgba(35,53,79,.99),rgba(17,28,43,.98));box-shadow:0 0 0 4px rgba(134,185,255,.14),0 16px 34px rgba(4,10,20,.28);transform:translateY(-1px)}
+.field-stack{display:grid;gap:8px;padding:12px;border-radius:18px;background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.015));border:1px solid rgba(151,181,216,.12)}
+.field-caption{font-size:.82rem;color:#a9bdd5;letter-spacing:.02em;line-height:1.4}
+.settings-menu{margin-top:18px;border:1px solid rgba(179,204,234,.22);border-radius:14px;background:rgba(10,18,29,.36);overflow:hidden;text-align:left}
+.settings-menu summary{cursor:pointer;list-style:none;padding:14px 16px;font-weight:600;color:#f4f8fc;display:flex;justify-content:space-between;align-items:center;gap:12px;text-align:center}
+.settings-menu summary::-webkit-details-marker{display:none}
+.settings-menu[open] summary{border-bottom:1px solid rgba(179,204,234,.14)}
+.settings-panel{padding:14px 16px 16px;display:grid;gap:14px}
+.settings-title{display:inline-flex;align-items:center;justify-content:center;gap:10px}
+.settings-summary-spacer,.settings-chevron{width:22px;flex:0 0 22px}
+.settings-gear{font-size:1.05rem;line-height:1}
+.settings-chevron{display:inline-flex;align-items:center;justify-content:center;font-size:1rem;line-height:1;color:#f4f8fc;transition:transform .22s ease}
+.settings-menu[open] .settings-chevron{transform:rotate(180deg)}
+.checkbox-grid{display:grid;gap:10px}
+.checkbox-row{display:flex;justify-content:space-between;align-items:center;gap:14px;color:#d1deed;padding:12px 14px;border:1px solid rgba(151,181,216,.14);border-radius:14px;background:rgba(17,27,42,.48)}
+.checkbox-copy{display:grid;gap:2px;min-width:0}
+.checkbox-copy strong{font-size:.94rem;color:#f3f7fd;font-weight:600}
+.checkbox-copy span{font-size:.82rem;color:#91a7c0}
+.checkbox-row input{position:absolute;opacity:0;pointer-events:none}
+.switch{position:relative;display:inline-flex;align-items:center;justify-content:flex-start;width:50px;height:30px;border-radius:999px;background:rgba(97,119,145,.45);box-shadow:inset 0 0 0 1px rgba(173,198,230,.16);transition:background .18s ease,box-shadow .18s ease;flex:0 0 auto}
+.switch::after{content:"";width:24px;height:24px;border-radius:50%;background:linear-gradient(180deg,#fdfefe,#dce8f7);box-shadow:0 3px 10px rgba(0,0,0,.28);transform:translateX(3px);transition:transform .18s ease}
+.checkbox-row input:checked + .switch{background:linear-gradient(135deg,#88bcff,#4f8be0);box-shadow:inset 0 0 0 1px rgba(154,206,255,.2),0 0 0 4px rgba(79,139,224,.12)}
+.checkbox-row input:checked + .switch::after{transform:translateX(23px)}
+.checkbox-row:focus-within{border-color:rgba(134,185,255,.45);box-shadow:0 0 0 4px rgba(134,185,255,.08)}
+.settings-actions{display:grid;gap:12px}
+.settings-status{font-size:.9rem;color:#b6c6d9;min-height:1.2em;text-align:left}
+.save-btn{width:100%;border:1px solid rgba(182,219,255,.34);border-radius:18px;padding:15px 18px;background:linear-gradient(135deg,#bfe0ff 0%,#7fb7ff 34%,#4f8be0 100%);color:#06101b;font-size:1rem;font-weight:800;letter-spacing:.02em;cursor:pointer;box-shadow:0 16px 30px rgba(25,67,128,.28),inset 0 1px 0 rgba(255,255,255,.45);transition:transform .18s ease,box-shadow .18s ease,filter .18s ease}
+.save-btn:hover{transform:translateY(-1px);box-shadow:0 18px 34px rgba(25,67,128,.34),inset 0 1px 0 rgba(255,255,255,.5);filter:saturate(1.05)}
+.save-btn:active{transform:translateY(0);box-shadow:0 10px 18px rgba(25,67,128,.26),inset 0 1px 0 rgba(255,255,255,.4)}
+.save-btn:disabled{opacity:.65;cursor:wait;transform:none;filter:none;box-shadow:0 10px 22px rgba(25,67,128,.22),inset 0 1px 0 rgba(255,255,255,.3)}
+.toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,18px);padding:12px 16px;border-radius:14px;background:rgba(8,17,29,.94);border:1px solid rgba(179,204,234,.24);color:#eef6ff;box-shadow:0 14px 36px rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:opacity .22s ease,transform .22s ease;z-index:20;max-width:min(92vw,420px);text-align:center}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast.success{background:linear-gradient(135deg,rgba(31,76,48,.96),rgba(20,44,30,.96));border-color:rgba(127,220,156,.38)}
+.toast.info{background:linear-gradient(135deg,rgba(23,54,92,.96),rgba(12,28,48,.96));border-color:rgba(130,182,255,.34)}
+.toast.error{background:linear-gradient(135deg,rgba(107,35,35,.96),rgba(57,18,18,.96));border-color:rgba(255,140,140,.32)}
 </style>
 </head>
 <body>
 <div class="panel">
-	<h1>Minitank joystick</h1>
+	<div class="title-bar">
+		<h1>Pickbot</h1>
+		<span id="stateDot" class="status-dot offline" aria-label="offline" title="offline"></span>
+	</div>
 	<p class="hint">Nahoru jede dopředu, dolů couvá, do stran zatáčí nebo rotuje na místě.</p>
-	<div class="status">Spojení: <span id="state" class="bad">odpojeno</span></div>
 	<div class="joystick-wrap">
 		<div class="joystick" id="joy"><div class="knob" id="knob"></div></div>
 	</div>
@@ -72,43 +121,194 @@ h1{font-size:1.2rem;margin:0 0 8px}
 		<div class="chip">X: <span id="xVal">0</span></div>
 		<div class="chip">Y: <span id="yVal">0</span></div>
 	</div>
-	<div class="servo">
-		<div class="servo-group">
-			<div>
-				<div class="servo-head">
-					<label for="servoRange22">Servo IO22</label>
-					<strong><span id="servoVal22">90</span>°</strong>
+	<div class="control-block">
+		<div class="control-group">
+			<div id="servoControl18" class="servo-control">
+				<div class="control-head">
+					<label for="servoRange18">Servo IO18</label>
+					<strong><span id="servoVal18">90</span>°</strong>
 				</div>
-				<input id="servoRange22" type="range" min="0" max="180" step="1" value="90">
+				<input id="servoRange18" type="range" min="0" max="180" step="1" value="90">
 			</div>
-			<div>
-				<div class="servo-head">
+			<div id="servoControl19" class="servo-control">
+				<div class="control-head">
+					<label for="servoRange19">Servo IO19</label>
+					<strong><span id="servoVal19">90</span>°</strong>
+				</div>
+				<input id="servoRange19" type="range" min="0" max="180" step="1" value="90">
+			</div>
+			<div id="servoControl21" class="servo-control">
+				<div class="control-head">
 					<label for="servoRange21">Servo IO21</label>
 					<strong><span id="servoVal21">90</span>°</strong>
 				</div>
 				<input id="servoRange21" type="range" min="0" max="180" step="1" value="90">
 			</div>
+			<div id="servoControl22" class="servo-control">
+				<div class="control-head">
+					<label for="servoRange22">Servo IO22</label>
+					<strong><span id="servoVal22">90</span>°</strong>
+				</div>
+				<input id="servoRange22" type="range" min="0" max="180" step="1" value="90">
+			</div>
 		</div>
 	</div>
+	<details class="settings-menu">
+		<summary>
+			<span class="settings-summary-spacer" aria-hidden="true"></span>
+			<span class="settings-title">
+				<span>Nastavení</span>
+				<span class="settings-gear" aria-hidden="true">&#9881;</span>
+			</span>
+			<span class="settings-chevron" aria-hidden="true">&#94;</span>
+		</summary>
+		<div class="settings-panel">
+			<div class="control-head">
+				<label for="sensitivityRange">Citlivost rozjezdu</label>
+				<strong><span id="sensitivityVal">100</span>%</strong>
+			</div>
+			<input id="sensitivityRange" type="range" min="25" max="150" step="5" value="100">
+			<div class="control-head">
+				<label for="deadzoneRange">Deadzone středu joysticku</label>
+				<strong><span id="deadzoneVal">8</span></strong>
+			</div>
+			<input id="deadzoneRange" type="range" min="0" max="20" step="1" value="8">
+			<div class="control-head">
+				<label for="motorStartRange">Základ rozjezdu motoru</label>
+				<strong><span id="motorStartVal">45</span>%</strong>
+			</div>
+			<input id="motorStartRange" type="range" min="0" max="80" step="1" value="45">
+			<div class="control-head">
+				<label for="apSsidInput">WiFi AP název</label>
+			</div>
+			<div class="field-stack">
+				<input id="apSsidInput" type="text" maxlength="31" value="Pickbot-Test" placeholder="Například Pickbot-Test" autocomplete="off" spellcheck="false">
+				<div class="field-caption">Název WiFi sítě, na kterou se připojíš po restartu.</div>
+			</div>
+			<div class="control-head">
+				<label for="apPasswordInput">WiFi AP heslo</label>
+			</div>
+			<div class="field-stack">
+				<input id="apPasswordInput" type="password" minlength="8" maxlength="63" value="12345678" placeholder="Minimálně 8 znaků" autocomplete="new-password" spellcheck="false">
+				<div class="field-caption">Heslo pro AP síť Pickbotu. Rozsah 8 až 63 znaků.</div>
+			</div>
+			<div class="settings-status">Po změně názvu nebo hesla se ESP32 restartuje a bude potřeba se připojit na novou síť.</div>
+			<div class="checkbox-grid">
+				<label class="checkbox-row" for="servoEnabled18">
+					<span class="checkbox-copy"><strong>Servo IO18</strong><span>Zobrazit posuvník pod joystickem</span></span>
+					<input id="servoEnabled18" type="checkbox">
+					<span class="switch" aria-hidden="true"></span>
+				</label>
+				<label class="checkbox-row" for="servoEnabled19">
+					<span class="checkbox-copy"><strong>Servo IO19</strong><span>Zobrazit posuvník pod joystickem</span></span>
+					<input id="servoEnabled19" type="checkbox">
+					<span class="switch" aria-hidden="true"></span>
+				</label>
+				<label class="checkbox-row" for="servoEnabled21">
+					<span class="checkbox-copy"><strong>Servo IO21</strong><span>Zobrazit posuvník pod joystickem</span></span>
+					<input id="servoEnabled21" type="checkbox">
+					<span class="switch" aria-hidden="true"></span>
+				</label>
+				<label class="checkbox-row" for="servoEnabled22">
+					<span class="checkbox-copy"><strong>Servo IO22</strong><span>Zobrazit posuvník pod joystickem</span></span>
+					<input id="servoEnabled22" type="checkbox">
+					<span class="switch" aria-hidden="true"></span>
+				</label>
+			</div>
+			<div class="checkbox-grid">
+				<label class="checkbox-row" for="invertSteeringAxis">
+					<span class="checkbox-copy"><strong>Invert X</strong><span>Otočit směr zatáčení joysticku</span></span>
+					<input id="invertSteeringAxis" type="checkbox">
+					<span class="switch" aria-hidden="true"></span>
+				</label>
+				<label class="checkbox-row" for="invertDriveAxis">
+					<span class="checkbox-copy"><strong>Invert Y</strong><span>Otočit směr jízdy vpřed a vzad</span></span>
+					<input id="invertDriveAxis" type="checkbox">
+					<span class="switch" aria-hidden="true"></span>
+				</label>
+				<label class="checkbox-row" for="invertLeftMotor">
+					<span class="checkbox-copy"><strong>Levý motor</strong><span>Invertovat jeho směr</span></span>
+					<input id="invertLeftMotor" type="checkbox">
+					<span class="switch" aria-hidden="true"></span>
+				</label>
+				<label class="checkbox-row" for="invertRightMotor">
+					<span class="checkbox-copy"><strong>Pravý motor</strong><span>Invertovat jeho směr</span></span>
+					<input id="invertRightMotor" type="checkbox">
+					<span class="switch" aria-hidden="true"></span>
+				</label>
+			</div>
+			<div class="settings-actions">
+				<div id="settingsStatus" class="settings-status">Načítám nastavení...</div>
+				<button id="saveSettingsBtn" class="save-btn" type="button">Uložit změny</button>
+			</div>
+		</div>
+	</details>
 </div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 <script>
-const stateEl = document.getElementById('state');
+const stateDotEl = document.getElementById('stateDot');
 const joy = document.getElementById('joy');
 const knob = document.getElementById('knob');
+const settingsMenuEl = document.querySelector('.settings-menu');
+const toastEl = document.getElementById('toast');
 const xValEl = document.getElementById('xVal');
 const yValEl = document.getElementById('yVal');
+const sensitivityRangeEl = document.getElementById('sensitivityRange');
+const sensitivityValEl = document.getElementById('sensitivityVal');
+const deadzoneRangeEl = document.getElementById('deadzoneRange');
+const deadzoneValEl = document.getElementById('deadzoneVal');
+const motorStartRangeEl = document.getElementById('motorStartRange');
+const motorStartValEl = document.getElementById('motorStartVal');
+const apSsidInputEl = document.getElementById('apSsidInput');
+const apPasswordInputEl = document.getElementById('apPasswordInput');
+const servoEnabled18El = document.getElementById('servoEnabled18');
+const servoEnabled19El = document.getElementById('servoEnabled19');
+const servoEnabled21El = document.getElementById('servoEnabled21');
+const servoEnabled22El = document.getElementById('servoEnabled22');
+const invertSteeringAxisEl = document.getElementById('invertSteeringAxis');
+const invertDriveAxisEl = document.getElementById('invertDriveAxis');
+const invertLeftMotorEl = document.getElementById('invertLeftMotor');
+const invertRightMotorEl = document.getElementById('invertRightMotor');
+const settingsStatusEl = document.getElementById('settingsStatus');
+const saveSettingsBtnEl = document.getElementById('saveSettingsBtn');
 const servoControls = [
 	{
+		pin: 18,
+		containerEl: document.getElementById('servoControl18'),
+		rangeEl: document.getElementById('servoRange18'),
+		valueEl: document.getElementById('servoVal18'),
+		enabledEl: servoEnabled18El,
+		enabledKey: 'servoEnabled18',
+		current: 90,
+		lastSent: -1,
+	},
+	{
+		pin: 19,
+		containerEl: document.getElementById('servoControl19'),
+		rangeEl: document.getElementById('servoRange19'),
+		valueEl: document.getElementById('servoVal19'),
+		enabledEl: servoEnabled19El,
+		enabledKey: 'servoEnabled19',
+		current: 90,
+		lastSent: -1,
+	},
+	{
 		pin: 22,
+		containerEl: document.getElementById('servoControl22'),
 		rangeEl: document.getElementById('servoRange22'),
 		valueEl: document.getElementById('servoVal22'),
+		enabledEl: servoEnabled22El,
+		enabledKey: 'servoEnabled22',
 		current: 90,
 		lastSent: -1,
 	},
 	{
 		pin: 21,
+		containerEl: document.getElementById('servoControl21'),
 		rangeEl: document.getElementById('servoRange21'),
 		valueEl: document.getElementById('servoVal21'),
+		enabledEl: servoEnabled21El,
+		enabledKey: 'servoEnabled21',
 		current: 90,
 		lastSent: -1,
 	},
@@ -120,17 +320,40 @@ let currentY = 0;
 let lastSentX = 999;
 let lastSentY = 999;
 let activePointer = null;
+let settingsDirty = false;
+let toastHideTimer = 0;
+
+const controlSettings = {
+	launchSensitivity: 100,
+	joystickDeadzone: 8,
+	motorStartCommandPercent: 45,
+	apSsid: 'Pickbot-Test',
+	apPassword: '12345678',
+	servoEnabled18: true,
+	servoEnabled19: true,
+	servoEnabled21: true,
+	servoEnabled22: true,
+	invertSteeringAxis: false,
+	invertDriveAxis: false,
+	invertLeftMotor: false,
+	invertRightMotor: false,
+};
+
+function setConnectionState(isOnline) {
+	stateDotEl.classList.toggle('online', isOnline);
+	stateDotEl.classList.toggle('offline', !isOnline);
+	stateDotEl.setAttribute('aria-label', isOnline ? 'online' : 'offline');
+	stateDotEl.title = isOnline ? 'online' : 'offline';
+}
 
 function connect() {
 	ws = new WebSocket(`ws://${location.host}/ws`);
 	ws.onopen = () => {
-		stateEl.textContent = 'připojeno';
-		stateEl.className = 'ok';
+		setConnectionState(true);
 		sendControl(true);
 	};
 	ws.onclose = () => {
-		stateEl.textContent = 'odpojeno';
-		stateEl.className = 'bad';
+		setConnectionState(false);
 		setTimeout(connect, 600);
 	};
 	ws.onerror = () => ws.close();
@@ -145,14 +368,15 @@ function sendControl(force=false) {
 }
 
 function sendServo(control, force=false) {
+	if (!controlSettings[control.enabledKey]) return;
 	if (!force && control.current === control.lastSent) return;
 	fetch(`/servo?pin=${control.pin}&angle=${control.current}`, { method: 'GET', cache: 'no-store' }).catch(() => {});
 	control.lastSent = control.current;
 }
 
-function setJoystick(x, y) {
-	currentX = Math.max(-100, Math.min(100, Math.round(x)));
-	currentY = Math.max(-100, Math.min(100, Math.round(y)));
+function setJoystick(rawX, rawY) {
+	currentX = Math.max(-100, Math.min(100, Math.round(rawX)));
+	currentY = Math.max(-100, Math.min(100, Math.round(rawY)));
 	xValEl.textContent = String(currentX);
 	yValEl.textContent = String(currentY);
 
@@ -160,6 +384,141 @@ function setJoystick(x, y) {
 	const px = (currentX / 100) * range;
 	const py = -(currentY / 100) * range;
 	knob.style.transform = `translate(${px}px, ${py}px)`;
+}
+
+function updateSettingsUiState(message, dirty=false) {
+	settingsDirty = dirty;
+	settingsStatusEl.textContent = message;
+}
+
+function showToast(message, variant='success') {
+	window.clearTimeout(toastHideTimer);
+	toastEl.textContent = message;
+	toastEl.className = `toast ${variant} show`;
+	toastHideTimer = window.setTimeout(() => {
+		toastEl.className = 'toast';
+	}, 2600);
+}
+
+function updateServoVisibility() {
+	servoControls.forEach(control => {
+		const isEnabled = Boolean(controlSettings[control.enabledKey]);
+		control.containerEl.classList.toggle('hidden', !isEnabled);
+		control.rangeEl.disabled = !isEnabled;
+	});
+}
+
+function applySettingsToForm(settings) {
+	controlSettings.launchSensitivity = Number(settings.launchSensitivity);
+	controlSettings.joystickDeadzone = Number(settings.joystickDeadzone);
+	controlSettings.motorStartCommandPercent = Number(settings.motorStartCommandPercent);
+	controlSettings.apSsid = String(settings.apSsid ?? '');
+	controlSettings.apPassword = String(settings.apPassword ?? '');
+	controlSettings.servoEnabled18 = Boolean(settings.servoEnabled18);
+	controlSettings.servoEnabled19 = Boolean(settings.servoEnabled19);
+	controlSettings.servoEnabled21 = Boolean(settings.servoEnabled21);
+	controlSettings.servoEnabled22 = Boolean(settings.servoEnabled22);
+	controlSettings.invertSteeringAxis = Boolean(settings.invertSteeringAxis);
+	controlSettings.invertDriveAxis = Boolean(settings.invertDriveAxis);
+	controlSettings.invertLeftMotor = Boolean(settings.invertLeftMotor);
+	controlSettings.invertRightMotor = Boolean(settings.invertRightMotor);
+
+	sensitivityRangeEl.value = String(controlSettings.launchSensitivity);
+	sensitivityValEl.textContent = String(controlSettings.launchSensitivity);
+	deadzoneRangeEl.value = String(controlSettings.joystickDeadzone);
+	deadzoneValEl.textContent = String(controlSettings.joystickDeadzone);
+	motorStartRangeEl.value = String(controlSettings.motorStartCommandPercent);
+	motorStartValEl.textContent = String(controlSettings.motorStartCommandPercent);
+	apSsidInputEl.value = controlSettings.apSsid;
+	apPasswordInputEl.value = controlSettings.apPassword;
+	servoEnabled18El.checked = controlSettings.servoEnabled18;
+	servoEnabled19El.checked = controlSettings.servoEnabled19;
+	servoEnabled21El.checked = controlSettings.servoEnabled21;
+	servoEnabled22El.checked = controlSettings.servoEnabled22;
+	invertSteeringAxisEl.checked = controlSettings.invertSteeringAxis;
+	invertDriveAxisEl.checked = controlSettings.invertDriveAxis;
+	invertLeftMotorEl.checked = controlSettings.invertLeftMotor;
+	invertRightMotorEl.checked = controlSettings.invertRightMotor;
+	updateServoVisibility();
+}
+
+function collectSettingsFromForm() {
+	return {
+		launchSensitivity: Number(sensitivityRangeEl.value),
+		joystickDeadzone: Number(deadzoneRangeEl.value),
+		motorStartCommandPercent: Number(motorStartRangeEl.value),
+		apSsid: apSsidInputEl.value.trim(),
+		apPassword: apPasswordInputEl.value,
+		servoEnabled18: servoEnabled18El.checked,
+		servoEnabled19: servoEnabled19El.checked,
+		servoEnabled21: servoEnabled21El.checked,
+		servoEnabled22: servoEnabled22El.checked,
+		invertSteeringAxis: invertSteeringAxisEl.checked,
+		invertDriveAxis: invertDriveAxisEl.checked,
+		invertLeftMotor: invertLeftMotorEl.checked,
+		invertRightMotor: invertRightMotorEl.checked,
+	};
+}
+
+async function loadSettings() {
+	try {
+		const response = await fetch('/settings', { cache: 'no-store' });
+		if (!response.ok) throw new Error('load_failed');
+		const settings = await response.json();
+		applySettingsToForm(settings);
+		servoControls.forEach(control => sendServo(control, true));
+		updateSettingsUiState('');
+	} catch {
+		updateServoVisibility();
+		updateSettingsUiState('Nepodařilo se načíst nastavení.', true);
+	}
+}
+
+async function saveSettings() {
+	const payload = collectSettingsFromForm();
+	const body = new URLSearchParams({
+		launchSensitivity: String(payload.launchSensitivity),
+		joystickDeadzone: String(payload.joystickDeadzone),
+		motorStartCommandPercent: String(payload.motorStartCommandPercent),
+		apSsid: payload.apSsid,
+		apPassword: payload.apPassword,
+		servoEnabled18: String(payload.servoEnabled18),
+		servoEnabled19: String(payload.servoEnabled19),
+		servoEnabled21: String(payload.servoEnabled21),
+		servoEnabled22: String(payload.servoEnabled22),
+		invertSteeringAxis: String(payload.invertSteeringAxis),
+		invertDriveAxis: String(payload.invertDriveAxis),
+		invertLeftMotor: String(payload.invertLeftMotor),
+		invertRightMotor: String(payload.invertRightMotor),
+	});
+
+	saveSettingsBtnEl.disabled = true;
+	updateSettingsUiState('Ukládám nastavení do ESP32...');
+
+	try {
+		const response = await fetch('/settings', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+			body,
+		});
+		if (!response.ok) throw new Error('save_failed');
+		const settings = await response.json();
+		applySettingsToForm(settings);
+		servoControls.forEach(control => sendServo(control, true));
+		if (settings.restartRequired) {
+			updateSettingsUiState('');
+			showToast(`WiFi uložena. Připoj se k síti ${settings.apSsid}.`, 'info');
+		} else {
+			updateSettingsUiState('');
+			showToast('Nastavení úspěšně uloženo', 'success');
+		}
+		sendControl(true);
+	} catch {
+		updateSettingsUiState('Uložení se nepodařilo.', true);
+		showToast('Uložení se nepodařilo', 'error');
+	} finally {
+		saveSettingsBtnEl.disabled = false;
+	}
 }
 
 function pointerToJoystick(ev) {
@@ -180,6 +539,51 @@ function pointerToJoystick(ev) {
 	sendControl(true);
 }
 
+sensitivityValEl.textContent = sensitivityRangeEl.value;
+sensitivityRangeEl.addEventListener('input', () => {
+	sensitivityValEl.textContent = sensitivityRangeEl.value;
+	updateSettingsUiState('Citlivost byla změněna, ulož ji do ESP32.', true);
+});
+
+deadzoneRangeEl.addEventListener('input', () => {
+	deadzoneValEl.textContent = deadzoneRangeEl.value;
+	updateSettingsUiState('Deadzone byla změněna, ulož ji do ESP32.', true);
+});
+
+motorStartRangeEl.addEventListener('input', () => {
+	motorStartValEl.textContent = motorStartRangeEl.value;
+	updateSettingsUiState('Základ rozjezdu motoru byl změněn, ulož ho do ESP32.', true);
+});
+
+[apSsidInputEl, apPasswordInputEl].forEach(inputEl => {
+	inputEl.addEventListener('input', () => {
+		updateSettingsUiState('WiFi nastavení bylo změněno, ulož ho do ESP32.', true);
+	});
+});
+
+[servoEnabled18El, servoEnabled19El, servoEnabled21El, servoEnabled22El].forEach(inputEl => {
+	inputEl.addEventListener('change', () => {
+		controlSettings[inputEl.id] = inputEl.checked;
+		updateServoVisibility();
+		updateSettingsUiState('Servo slidery byly změněny, ulož je do ESP32.', true);
+	});
+});
+
+[invertSteeringAxisEl, invertDriveAxisEl, invertLeftMotorEl, invertRightMotorEl].forEach(inputEl => {
+	inputEl.addEventListener('change', () => {
+		updateSettingsUiState('Nastavení bylo změněno, ulož ho do ESP32.', true);
+	});
+});
+
+saveSettingsBtnEl.addEventListener('click', () => {
+	void saveSettings();
+});
+
+settingsMenuEl.addEventListener('toggle', () => {
+	if (settingsMenuEl.open || settingsDirty || settingsStatusEl.textContent) return;
+	updateSettingsUiState('');
+});
+
 servoControls.forEach(control => {
 	control.current = Number(control.rangeEl.value);
 	control.valueEl.textContent = String(control.current);
@@ -191,6 +595,7 @@ servoControls.forEach(control => {
 });
 
 joy.addEventListener('pointerdown', ev => {
+	ev.preventDefault();
 	activePointer = ev.pointerId;
 	joy.setPointerCapture(ev.pointerId);
 	pointerToJoystick(ev);
@@ -198,11 +603,13 @@ joy.addEventListener('pointerdown', ev => {
 
 joy.addEventListener('pointermove', ev => {
 	if (activePointer !== ev.pointerId) return;
+	ev.preventDefault();
 	pointerToJoystick(ev);
 });
 
 function releasePointer(ev) {
 	if (activePointer !== ev.pointerId) return;
+	ev.preventDefault();
 	activePointer = null;
 	setJoystick(0, 0);
 	sendControl(true);
@@ -210,11 +617,14 @@ function releasePointer(ev) {
 
 joy.addEventListener('pointerup', releasePointer);
 joy.addEventListener('pointercancel', releasePointer);
+joy.addEventListener('dragstart', ev => ev.preventDefault());
 setInterval(() => {
 	const shouldKeepAlive = activePointer !== null || currentX !== 0 || currentY !== 0;
 	sendControl(shouldKeepAlive);
 }, 100);
-servoControls.forEach(control => sendServo(control, true));
+updateServoVisibility();
+setConnectionState(false);
+void loadSettings();
 connect();
 </script>
 </body>
