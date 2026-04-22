@@ -68,6 +68,7 @@ h1{font-size:1.45rem;letter-spacing:.04em;margin:0}
 .control-block label{font-size:.95rem}
 .control-block strong{font-size:1rem;color:#ffffff}
 .control-block input[type=range],.control-block input[type=text],.control-block input[type=password]{width:100%;accent-color:#86b9ff}
+.control-block input[type=color]{width:100%;height:48px;border:1px solid rgba(120,175,245,.32);border-radius:14px;background:rgba(16,26,40,.95);padding:4px}
 .control-block input[type=text],.control-block input[type=password]{border:1px solid rgba(120,175,245,.32);border-radius:16px;background:linear-gradient(180deg,rgba(28,42,63,.98),rgba(13,21,33,.96));color:#f4f9ff;padding:14px 16px;font-size:1rem;font-weight:600;letter-spacing:.01em;box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 10px 24px rgba(2,8,16,.22);transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease,background .18s ease}
 .control-block input[type=text]::placeholder,.control-block input[type=password]::placeholder{color:rgba(198,215,236,.62);font-weight:500}
 .control-block input[type=text]:focus,.control-block input[type=password]:focus{outline:none;border-color:rgba(134,185,255,.82);background:linear-gradient(180deg,rgba(35,53,79,.99),rgba(17,28,43,.98));box-shadow:0 0 0 4px rgba(134,185,255,.14),0 16px 34px rgba(4,10,20,.28);transform:translateY(-1px)}
@@ -164,6 +165,11 @@ h1{font-size:1.45rem;letter-spacing:.04em;margin:0}
 		</summary>
 		<div class="settings-panel">
 			<div class="control-head">
+				<label for="ledColorInput">RGB LED IO4 (4x WS2812B)</label>
+				<strong><span id="ledColorHex">#0050b4</span></strong>
+			</div>
+			<input id="ledColorInput" type="color" value="#0050b4">
+			<div class="control-head">
 				<label for="sensitivityRange">Citlivost rozjezdu</label>
 				<strong><span id="sensitivityVal">100</span>%</strong>
 			</div>
@@ -253,6 +259,8 @@ const settingsMenuEl = document.querySelector('.settings-menu');
 const toastEl = document.getElementById('toast');
 const xValEl = document.getElementById('xVal');
 const yValEl = document.getElementById('yVal');
+const ledColorInputEl = document.getElementById('ledColorInput');
+const ledColorHexEl = document.getElementById('ledColorHex');
 const sensitivityRangeEl = document.getElementById('sensitivityRange');
 const sensitivityValEl = document.getElementById('sensitivityVal');
 const deadzoneRangeEl = document.getElementById('deadzoneRange');
@@ -327,6 +335,9 @@ const controlSettings = {
 	launchSensitivity: 100,
 	joystickDeadzone: 8,
 	motorStartCommandPercent: 45,
+	ledRed: 0,
+	ledGreen: 80,
+	ledBlue: 180,
 	apSsid: 'Pickbot-Test',
 	apPassword: '12345678',
 	servoEnabled18: true,
@@ -391,6 +402,34 @@ function updateSettingsUiState(message, dirty=false) {
 	settingsStatusEl.textContent = message;
 }
 
+function rgbToHex(red, green, blue) {
+	return `#${[red, green, blue].map(value => value.toString(16).padStart(2, '0')).join('')}`;
+}
+
+function hexToRgb(hexColor) {
+	const normalized = String(hexColor).trim().replace('#', '');
+	if (normalized.length !== 6) {
+		return { red: 0, green: 80, blue: 180 };
+	}
+
+	return {
+		red: Number.parseInt(normalized.slice(0, 2), 16),
+		green: Number.parseInt(normalized.slice(2, 4), 16),
+		blue: Number.parseInt(normalized.slice(4, 6), 16),
+	};
+}
+
+function syncLedColorUi() {
+	const hex = rgbToHex(controlSettings.ledRed, controlSettings.ledGreen, controlSettings.ledBlue);
+	ledColorInputEl.value = hex;
+	ledColorHexEl.textContent = hex.toUpperCase();
+}
+
+function sendLedPreview() {
+	const { red, green, blue } = hexToRgb(ledColorInputEl.value);
+	fetch(`/led?r=${red}&g=${green}&b=${blue}`, { method: 'GET', cache: 'no-store' }).catch(() => {});
+}
+
 function showToast(message, variant='success') {
 	window.clearTimeout(toastHideTimer);
 	toastEl.textContent = message;
@@ -412,6 +451,9 @@ function applySettingsToForm(settings) {
 	controlSettings.launchSensitivity = Number(settings.launchSensitivity);
 	controlSettings.joystickDeadzone = Number(settings.joystickDeadzone);
 	controlSettings.motorStartCommandPercent = Number(settings.motorStartCommandPercent);
+	controlSettings.ledRed = Number(settings.ledRed ?? controlSettings.ledRed);
+	controlSettings.ledGreen = Number(settings.ledGreen ?? controlSettings.ledGreen);
+	controlSettings.ledBlue = Number(settings.ledBlue ?? controlSettings.ledBlue);
 	controlSettings.apSsid = String(settings.apSsid ?? '');
 	controlSettings.apPassword = String(settings.apPassword ?? '');
 	controlSettings.servoEnabled18 = Boolean(settings.servoEnabled18);
@@ -429,6 +471,7 @@ function applySettingsToForm(settings) {
 	deadzoneValEl.textContent = String(controlSettings.joystickDeadzone);
 	motorStartRangeEl.value = String(controlSettings.motorStartCommandPercent);
 	motorStartValEl.textContent = String(controlSettings.motorStartCommandPercent);
+	syncLedColorUi();
 	apSsidInputEl.value = controlSettings.apSsid;
 	apPasswordInputEl.value = controlSettings.apPassword;
 	servoEnabled18El.checked = controlSettings.servoEnabled18;
@@ -447,6 +490,9 @@ function collectSettingsFromForm() {
 		launchSensitivity: Number(sensitivityRangeEl.value),
 		joystickDeadzone: Number(deadzoneRangeEl.value),
 		motorStartCommandPercent: Number(motorStartRangeEl.value),
+		ledRed: Number.parseInt(ledColorInputEl.value.slice(1, 3), 16),
+		ledGreen: Number.parseInt(ledColorInputEl.value.slice(3, 5), 16),
+		ledBlue: Number.parseInt(ledColorInputEl.value.slice(5, 7), 16),
 		apSsid: apSsidInputEl.value.trim(),
 		apPassword: apPasswordInputEl.value,
 		servoEnabled18: servoEnabled18El.checked,
@@ -480,6 +526,9 @@ async function saveSettings() {
 		launchSensitivity: String(payload.launchSensitivity),
 		joystickDeadzone: String(payload.joystickDeadzone),
 		motorStartCommandPercent: String(payload.motorStartCommandPercent),
+		ledRed: String(payload.ledRed),
+		ledGreen: String(payload.ledGreen),
+		ledBlue: String(payload.ledBlue),
 		apSsid: payload.apSsid,
 		apPassword: payload.apPassword,
 		servoEnabled18: String(payload.servoEnabled18),
@@ -553,6 +602,16 @@ deadzoneRangeEl.addEventListener('input', () => {
 motorStartRangeEl.addEventListener('input', () => {
 	motorStartValEl.textContent = motorStartRangeEl.value;
 	updateSettingsUiState('Základ rozjezdu motoru byl změněn, ulož ho do ESP32.', true);
+});
+
+ledColorInputEl.addEventListener('input', () => {
+	const { red, green, blue } = hexToRgb(ledColorInputEl.value);
+	controlSettings.ledRed = red;
+	controlSettings.ledGreen = green;
+	controlSettings.ledBlue = blue;
+	syncLedColorUi();
+	sendLedPreview();
+	updateSettingsUiState('Barva LED byla změněna, ulož ji do ESP32.', true);
 });
 
 [apSsidInputEl, apPasswordInputEl].forEach(inputEl => {

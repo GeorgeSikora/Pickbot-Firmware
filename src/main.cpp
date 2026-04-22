@@ -5,12 +5,15 @@
 #include <LittleFS.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+#include <Adafruit_NeoPixel.h>
 
 constexpr int MOTOR_A_IN1 = 16;
 constexpr int MOTOR_A_IN2 = 17;
 constexpr int MOTOR_B_IN1 = 14;
 constexpr int MOTOR_B_IN2 = 27;
 constexpr int BUZZER_PIN = 22;
+constexpr int LED_STRIP_PIN = 4;
+constexpr uint8_t LED_STRIP_COUNT = 4;
 constexpr int SERVO_1_PIN = -1; // NOT USED!
 constexpr int SERVO_2_PIN = 21;
 constexpr int SERVO_3_PIN = 19;
@@ -53,7 +56,7 @@ constexpr uint16_t SERVO_MIN_PULSE_US = 500;
 constexpr uint16_t SERVO_MAX_PULSE_US = 2400;
 constexpr const char* SETTINGS_NAMESPACE = "pickbot";
 constexpr const char* MDNS_HOSTNAME = "pickbot";
-constexpr const char* DEFAULT_AP_SSID = "Tvuj-Pickbot";
+constexpr const char* DEFAULT_AP_SSID = "muj-pickbot";
 constexpr const char* DEFAULT_AP_PASS = "12345678";
 constexpr uint8_t AP_SSID_MAX_LENGTH = 31;
 constexpr uint8_t AP_PASS_MIN_LENGTH = 8;
@@ -66,6 +69,7 @@ String apPass = DEFAULT_AP_PASS;
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 Preferences preferences;
+Adafruit_NeoPixel ledStrip(LED_STRIP_COUNT, LED_STRIP_PIN, NEO_GRB + NEO_KHZ800);
 
 const int SERVO_PINS[SERVO_COUNT] = { SERVO_1_PIN, SERVO_2_PIN, SERVO_3_PIN, SERVO_4_PIN };
 const int SERVO_CHANNELS[SERVO_COUNT] = { SERVO_1_CH, SERVO_2_CH, SERVO_3_CH, SERVO_4_CH };
@@ -79,6 +83,9 @@ struct ControlSettings {
   uint8_t launchSensitivityPercent = DEFAULT_LAUNCH_SENSITIVITY_PERCENT;
   uint8_t joystickDeadzone = DEFAULT_JOYSTICK_DEADZONE;
   uint8_t motorStartCommandPercent = DEFAULT_MOTOR_START_COMMAND_PERCENT;
+  uint8_t ledRed = 0;
+  uint8_t ledGreen = 80;
+  uint8_t ledBlue = 180;
   bool servoEnabled18 = true;
   bool servoEnabled19 = true;
   bool servoEnabled21 = true;
@@ -311,6 +318,13 @@ void sanitizeControlSettings(ControlSettings& settings) {
                                                                      MAX_MOTOR_START_COMMAND_PERCENT));
 }
 
+void applyLedColor(uint8_t red, uint8_t green, uint8_t blue) {
+  for (uint8_t idx = 0; idx < LED_STRIP_COUNT; ++idx) {
+    ledStrip.setPixelColor(idx, ledStrip.Color(red, green, blue));
+  }
+  ledStrip.show();
+}
+
 String getControlSettingsJson(bool restartRequired = false) {
   String json = "{";
   json += "\"launchSensitivity\":";
@@ -319,6 +333,12 @@ String getControlSettingsJson(bool restartRequired = false) {
   json += String(controlSettings.joystickDeadzone);
   json += ",\"motorStartCommandPercent\":";
   json += String(controlSettings.motorStartCommandPercent);
+  json += ",\"ledRed\":";
+  json += String(controlSettings.ledRed);
+  json += ",\"ledGreen\":";
+  json += String(controlSettings.ledGreen);
+  json += ",\"ledBlue\":";
+  json += String(controlSettings.ledBlue);
   json += ",\"servoEnabled18\":";
   json += controlSettings.servoEnabled18 ? "true" : "false";
   json += ",\"servoEnabled19\":";
@@ -351,6 +371,9 @@ void loadControlSettings() {
   controlSettings.launchSensitivityPercent = preferences.getUChar("launchPct", DEFAULT_LAUNCH_SENSITIVITY_PERCENT);
   controlSettings.joystickDeadzone = preferences.getUChar("deadzone", DEFAULT_JOYSTICK_DEADZONE);
   controlSettings.motorStartCommandPercent = preferences.getUChar("motorStartPct", DEFAULT_MOTOR_START_COMMAND_PERCENT);
+  controlSettings.ledRed = preferences.getUChar("ledR", 0);
+  controlSettings.ledGreen = preferences.getUChar("ledG", 80);
+  controlSettings.ledBlue = preferences.getUChar("ledB", 180);
   controlSettings.servoEnabled18 = preferences.getBool("servo18", true);
   controlSettings.servoEnabled19 = preferences.getBool("servo19", true);
   controlSettings.servoEnabled21 = preferences.getBool("servo21", true);
@@ -369,6 +392,9 @@ void saveControlSettings() {
   preferences.putUChar("launchPct", controlSettings.launchSensitivityPercent);
   preferences.putUChar("deadzone", controlSettings.joystickDeadzone);
   preferences.putUChar("motorStartPct", controlSettings.motorStartCommandPercent);
+  preferences.putUChar("ledR", controlSettings.ledRed);
+  preferences.putUChar("ledG", controlSettings.ledGreen);
+  preferences.putUChar("ledB", controlSettings.ledBlue);
   preferences.putBool("servo18", controlSettings.servoEnabled18);
   preferences.putBool("servo19", controlSettings.servoEnabled19);
   preferences.putBool("servo21", controlSettings.servoEnabled21);
@@ -400,6 +426,13 @@ bool tryParseAngleParam(const String& value, int& angleOut) {
   if (angle < 0 || angle > 180) return false;
 
   angleOut = angle;
+  return true;
+}
+
+bool tryParseRgbParam(const String& value, uint8_t& parsedOut) {
+  int parsed = 0;
+  if (!tryParsePercentParam(value, 0, 255, parsed)) return false;
+  parsedOut = static_cast<uint8_t>(parsed);
   return true;
 }
 
@@ -555,6 +588,29 @@ void handleSettingsGet(AsyncWebServerRequest* request) {
   request->send(200, "application/json; charset=utf-8", getControlSettingsJson());
 }
 
+void handleLed(AsyncWebServerRequest* request) {
+  if (!request->hasParam("r") || !request->hasParam("g") || !request->hasParam("b")) {
+    request->send(400, "text/plain", "Missing r/g/b parameter");
+    return;
+  }
+
+  uint8_t red = 0;
+  uint8_t green = 0;
+  uint8_t blue = 0;
+  if (!tryParseRgbParam(request->getParam("r")->value(), red) ||
+      !tryParseRgbParam(request->getParam("g")->value(), green) ||
+      !tryParseRgbParam(request->getParam("b")->value(), blue)) {
+    request->send(400, "text/plain", "r/g/b must be 0-255");
+    return;
+  }
+
+  controlSettings.ledRed = red;
+  controlSettings.ledGreen = green;
+  controlSettings.ledBlue = blue;
+  applyLedColor(red, green, blue);
+  request->send(204);
+}
+
 void handleSettingsPost(AsyncWebServerRequest* request) {
   ControlSettings updatedSettings = controlSettings;
   String updatedApSsid = apSsid;
@@ -595,6 +651,27 @@ void handleSettingsPost(AsyncWebServerRequest* request) {
       return;
     }
     updatedSettings.motorStartCommandPercent = static_cast<uint8_t>(parsedStartCommand);
+  }
+
+  if (request->hasParam("ledRed", true)) {
+    if (!tryParseRgbParam(request->getParam("ledRed", true)->value(), updatedSettings.ledRed)) {
+      request->send(400, "text/plain", "ledRed must be 0-255");
+      return;
+    }
+  }
+
+  if (request->hasParam("ledGreen", true)) {
+    if (!tryParseRgbParam(request->getParam("ledGreen", true)->value(), updatedSettings.ledGreen)) {
+      request->send(400, "text/plain", "ledGreen must be 0-255");
+      return;
+    }
+  }
+
+  if (request->hasParam("ledBlue", true)) {
+    if (!tryParseRgbParam(request->getParam("ledBlue", true)->value(), updatedSettings.ledBlue)) {
+      request->send(400, "text/plain", "ledBlue must be 0-255");
+      return;
+    }
   }
 
   auto parseServoEnabledParam = [&](const char* name, bool& targetValue) -> bool {
@@ -653,6 +730,7 @@ void handleSettingsPost(AsyncWebServerRequest* request) {
   apSsid = updatedApSsid;
   apPass = updatedApPass;
   saveControlSettings();
+  applyLedColor(controlSettings.ledRed, controlSettings.ledGreen, controlSettings.ledBlue);
   if (restartRequired) {
     restartScheduled = true;
     restartAtMs = millis() + SETTINGS_RESTART_DELAY_MS;
@@ -713,6 +791,8 @@ void initTankControl() {
   ledcAttachPin(SERVO_2_PIN, SERVO_2_CH);
   ledcAttachPin(SERVO_3_PIN, SERVO_3_CH);
   ledcAttachPin(SERVO_4_PIN, SERVO_4_CH);
+  ledStrip.begin();
+  applyLedColor(controlSettings.ledRed, controlSettings.ledGreen, controlSettings.ledBlue);
   for (size_t idx = 0; idx < SERVO_COUNT; ++idx) {
     setServoAngle(SERVO_CHANNELS[idx], currentServoAngles[idx], currentServoAngles[idx]);
   }
@@ -759,6 +839,7 @@ void initTankControl() {
   server.addHandler(&ws);
   server.on("/", HTTP_GET, handleRoot);
   server.on("/servo", HTTP_GET, handleServo);
+  server.on("/led", HTTP_GET, handleLed);
   server.on("/settings", HTTP_GET, handleSettingsGet);
   server.on("/settings", HTTP_POST, handleSettingsPost);
   server.begin();

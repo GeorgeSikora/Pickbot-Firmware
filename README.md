@@ -2,6 +2,21 @@
 
 Firmware pro ESP32, který z malého pásového robota udělá vlastní Wi‑Fi ovládaný tank s webovým rozhraním.
 
+## Nahrání firmware a webu (SPIFFS) - nejdůležitější krok
+
+Aby robot fungoval správně, musíš nahrát 2 věci: firmware a souborový systém (SPIFFS/LittleFS) s webem.
+
+Postup v bodech:
+
+1. Připoj ESP32 přes USB.
+2. V PlatformIO spusť Build (ověření překladu).
+3. Nahraj firmware: `Upload` (nebo `pio run -t upload`).
+4. **POVINNĚ nahraj i webové soubory:** **`Upload Filesystem Image`** (nebo `pio run -t uploadfs`).
+5. Otevři Serial Monitor a zkontroluj, že ESP32 naběhlo bez chyb.
+6. Připoj se na Wi‑Fi ESP32 a otevři webové rozhraní.
+
+Bez kroku 4 (`Upload Filesystem Image`) nebude dostupné webové ovládání z `data/index.html`.
+
 Po zapnutí se ESP32 přepne do režimu access point, vytvoří vlastní síť, nahraje jednoduchou webovou stránku s joystickem a přes ni ovládá dva DC motory. Současně umí nastavovat serva, pípá při couvání a ukládá nastavení do interní paměti, aby zůstalo zachované i po restartu.
 
 ## Co projekt umí
@@ -26,7 +41,7 @@ Po zapnutí se ESP32 přepne do režimu access point, vytvoří vlastní síť, 
 
 ## Výchozí připojení
 
-- Wi‑Fi SSID: `Tvuj-Pickbot`
+- Wi‑Fi SSID: `muj-pickbot`
 - Wi‑Fi heslo: `12345678`
 - Web: `http://192.168.4.1`
 - mDNS adresa: `http://pickbot.local`
@@ -52,9 +67,10 @@ Název i heslo AP lze změnit přímo ve webovém rozhraní. Po změně se ESP32
 ### Další výstupy
 
 - bzučák: `GPIO22`
+- LED pásek (NeoPixel): `GPIO4` (4 LED)
 - servo výstupy v aktuální konfiguraci: `GPIO21`, `GPIO19`, `GPIO18`
 
-Poznámka: v kódu je připravený i čtvrtý servo kanál, ale v aktuálním nastavení je označený jako nepoužitý.
+Poznámka: v kódu je připravený i čtvrtý servo kanál, ale v aktuálním nastavení je označený jako nepoužitý (`SERVO_1_PIN = -1`).
 
 ## Struktura projektu
 
@@ -89,7 +105,14 @@ Typické příkazy:
 %USERPROFILE%/.platformio/penv/Scripts/platformio.exe device monitor
 ```
 
-`uploadfs` nahraje soubory z adresáře `data`, tedy i webové rozhraní.
+`uploadfs` (Upload Filesystem Image) nahraje soubory z adresáře `data`, tedy i webové rozhraní.
+
+Doporučené pořadí při flashování:
+
+1. `run` (build)
+2. `run -t upload` (firmware)
+3. **`run -t uploadfs` (POVINNÉ pro webové ovládání)**
+4. `device monitor`
 
 ## Poznámky k chování firmware
 
