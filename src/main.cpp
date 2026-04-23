@@ -11,10 +11,9 @@ constexpr int MOTOR_A_IN1 = 16;
 constexpr int MOTOR_A_IN2 = 17;
 constexpr int MOTOR_B_IN1 = 14;
 constexpr int MOTOR_B_IN2 = 27;
-constexpr int BUZZER_PIN = 22;
 constexpr int LED_STRIP_PIN = 4;
 constexpr uint8_t LED_STRIP_COUNT = 4;
-constexpr int SERVO_1_PIN = -1; // NOT USED!
+constexpr int SERVO_1_PIN = 22;
 constexpr int SERVO_2_PIN = 21;
 constexpr int SERVO_3_PIN = 19;
 constexpr int SERVO_4_PIN = 18;
@@ -771,12 +770,11 @@ void initTankControl() {
     loadControlSettings();
   }
 
-  Serial.println("1. Nastavuji PWM a piny motoru/bzucaku...");
+  Serial.println("1. Nastavuji PWM a piny motoru/servosystemu...");
   ledcSetup(MOTOR_A_IN1_CH, PWM_FREQ, PWM_RESOLUTION_BITS);
   ledcSetup(MOTOR_A_IN2_CH, PWM_FREQ, PWM_RESOLUTION_BITS);
   ledcSetup(MOTOR_B_IN1_CH, PWM_FREQ, PWM_RESOLUTION_BITS);
   ledcSetup(MOTOR_B_IN2_CH, PWM_FREQ, PWM_RESOLUTION_BITS);
-  ledcSetup(BUZZER_CH, 2000, 8);
   ledcSetup(SERVO_1_CH, SERVO_FREQ, SERVO_RESOLUTION_BITS);
   ledcSetup(SERVO_2_CH, SERVO_FREQ, SERVO_RESOLUTION_BITS);
   ledcSetup(SERVO_3_CH, SERVO_FREQ, SERVO_RESOLUTION_BITS);
@@ -786,7 +784,6 @@ void initTankControl() {
   ledcAttachPin(MOTOR_A_IN2, MOTOR_A_IN2_CH);
   ledcAttachPin(MOTOR_B_IN1, MOTOR_B_IN1_CH);
   ledcAttachPin(MOTOR_B_IN2, MOTOR_B_IN2_CH);
-  ledcAttachPin(BUZZER_PIN, BUZZER_CH);
   ledcAttachPin(SERVO_1_PIN, SERVO_1_CH);
   ledcAttachPin(SERVO_2_PIN, SERVO_2_CH);
   ledcAttachPin(SERVO_3_PIN, SERVO_3_CH);
