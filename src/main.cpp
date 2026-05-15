@@ -7,6 +7,19 @@
 #include <ESPAsyncWebServer.h>
 #include <Adafruit_NeoPixel.h>
 
+// Odporovy delic 100k/33k: pro WiFi stabilitu pouzivame IO36 (ADC1, bez konfliktu).
+constexpr int VOLTAGE_PIN = 36;
+// Kalibrovano podle mereni: multimetr 5.03 V vs web 5.10 V.
+constexpr float VOLTAGE_R1_KOHM = 98.2f;
+constexpr float VOLTAGE_R2_KOHM = 33.0f;
+// Koeficient pro prepocet napeti na pinu na skutecne vstupni napeti
+constexpr float VOLTAGE_DIVIDER_RATIO = (VOLTAGE_R1_KOHM + VOLTAGE_R2_KOHM) / VOLTAGE_R2_KOHM;
+constexpr float VOLTAGE_CALIBRATION_MULTIPLIER = 1.00f;
+constexpr uint8_t BATTERY_SERIES_CELLS = 2;
+constexpr float TRACK_DIAMETER_M = 0.043f;
+constexpr float ESTIMATED_MAX_TRACK_RPM = 300.0f;
+constexpr uint32_t STATS_SAVE_INTERVAL_MS = 10000;
+
 constexpr int MOTOR_A_IN1 = 16;
 constexpr int MOTOR_A_IN2 = 17;
 constexpr int MOTOR_B_IN1 = 14;
@@ -95,6 +108,12 @@ struct ControlSettings {
   bool invertRightMotor = false;
 };
 
+struct DistanceStats {
+  float totalKm = 0.0f;
+  float leftKm = 0.0f;
+  float rightKm = 0.0f;
+};
+
 volatile uint32_t lastControlAtMs = 0;
 uint32_t lastWsCleanupAtMs = 0;
 bool reverseBeepEnabled = false;
@@ -104,8 +123,73 @@ uint8_t currentServoAngles[SERVO_COUNT] = { 90, 90, 90, 90 };
 MotorState leftMotorState;
 MotorState rightMotorState;
 ControlSettings controlSettings;
+DistanceStats distanceStats;
 bool restartScheduled = false;
 uint32_t restartAtMs = 0;
+uint32_t lastStatsUpdateMs = 0;
+uint32_t lastStatsSaveMs = 0;
+
+int getEffectiveMotorPwm(const MotorState& state, uint32_t nowMs);
+
+void loadDistanceStats() {
+  distanceStats.totalKm = preferences.getFloat("odoTotal", 0.0f);
+  distanceStats.leftKm = preferences.getFloat("odoLeft", 0.0f);
+  distanceStats.rightKm = preferences.getFloat("odoRight", 0.0f);
+}
+
+void saveDistanceStats() {
+  preferences.putFloat("odoTotal", distanceStats.totalKm);
+  preferences.putFloat("odoLeft", distanceStats.leftKm);
+  preferences.putFloat("odoRight", distanceStats.rightKm);
+}
+
+float estimateTrackRpmFromPwm(int pwm) {
+  const float normalized = static_cast<float>(abs(pwm)) / static_cast<float>(MAX_PWM);
+  return normalized * ESTIMATED_MAX_TRACK_RPM;
+}
+
+void updateDistanceStats(uint32_t nowMs) {
+  if (lastStatsUpdateMs == 0) {
+    lastStatsUpdateMs = nowMs;
+    return;
+  }
+
+  const uint32_t dtMs = nowMs - lastStatsUpdateMs;
+  lastStatsUpdateMs = nowMs;
+  if (dtMs == 0 || dtMs > 1000) return;
+
+  const float dtSeconds = dtMs / 1000.0f;
+  const int leftPwm = getEffectiveMotorPwm(leftMotorState, nowMs);
+  const int rightPwm = getEffectiveMotorPwm(rightMotorState, nowMs);
+  const float leftRpm = estimateTrackRpmFromPwm(leftPwm);
+  const float rightRpm = estimateTrackRpmFromPwm(rightPwm);
+
+  const float trackCircumferenceKm = (static_cast<float>(PI) * TRACK_DIAMETER_M) / 1000.0f;
+  const float leftRevs = (leftRpm / 60.0f) * dtSeconds;
+  const float rightRevs = (rightRpm / 60.0f) * dtSeconds;
+  const float leftDeltaKm = leftRevs * trackCircumferenceKm;
+  const float rightDeltaKm = rightRevs * trackCircumferenceKm;
+
+  distanceStats.leftKm += leftDeltaKm;
+  distanceStats.rightKm += rightDeltaKm;
+  distanceStats.totalKm += (leftDeltaKm + rightDeltaKm) * 0.5f;
+}
+
+String getDistanceStatsJson() {
+  String json = "{";
+  json += "\"totalKm\":";
+  json += String(distanceStats.totalKm, 3);
+  json += ",\"leftKm\":";
+  json += String(distanceStats.leftKm, 3);
+  json += ",\"rightKm\":";
+  json += String(distanceStats.rightKm, 3);
+  json += ",\"trackDiameterMm\":";
+  json += String(TRACK_DIAMETER_M * 1000.0f, 1);
+  json += ",\"maxTrackRpm\":";
+  json += String(ESTIMATED_MAX_TRACK_RPM, 0);
+  json += "}";
+  return json;
+}
 
 void setReverseBeep(bool enabled) {
   if (enabled == reverseBeepEnabled) return;
@@ -542,6 +626,83 @@ void handleRoot(AsyncWebServerRequest* request) {
   request->send(LittleFS, "/index.html", "text/html; charset=utf-8");
 }
 
+int estimateBatteryPercent2S(float batteryVoltageV) {
+  constexpr float cellVoltageTable[] = {
+    4.20f, 4.15f, 4.11f, 4.08f, 4.02f, 3.98f, 3.95f, 3.91f, 3.87f, 3.85f,
+    3.84f, 3.82f, 3.80f, 3.79f, 3.77f, 3.75f, 3.73f, 3.71f, 3.69f, 3.61f,
+    3.50f
+  };
+  constexpr int percentTable[] = {
+    100, 95, 90, 85, 80, 75, 70, 65, 60, 55,
+    50, 45, 40, 35, 30, 25, 20, 15, 10, 5,
+    0
+  };
+  constexpr size_t tableSize = sizeof(cellVoltageTable) / sizeof(cellVoltageTable[0]);
+
+  const float cellVoltage = batteryVoltageV / BATTERY_SERIES_CELLS;
+  if (cellVoltage >= cellVoltageTable[0]) return 100;
+  if (cellVoltage <= cellVoltageTable[tableSize - 1]) return 0;
+
+  for (size_t idx = 0; idx < tableSize - 1; ++idx) {
+    const float upperV = cellVoltageTable[idx];
+    const float lowerV = cellVoltageTable[idx + 1];
+    if (cellVoltage <= upperV && cellVoltage >= lowerV) {
+      const float spanV = upperV - lowerV;
+      const float ratio = spanV > 0.0f ? (cellVoltage - lowerV) / spanV : 0.0f;
+      const float interpolated = percentTable[idx + 1] + ratio * (percentTable[idx] - percentTable[idx + 1]);
+      return constrain(static_cast<int>(interpolated + 0.5f), 0, 100);
+    }
+  }
+
+  return 0;
+}
+
+void handleAdc(AsyncWebServerRequest* request) {
+  uint32_t millivoltSum = 0;
+  constexpr uint8_t sampleCount = 64;
+  for (uint8_t idx = 0; idx < sampleCount; ++idx) {
+    millivoltSum += analogReadMilliVolts(VOLTAGE_PIN);
+    delayMicroseconds(200);
+  }
+
+  const uint32_t pinMillivolts = millivoltSum / sampleCount;
+  const float voltageOnPinV = pinMillivolts / 1000.0f;
+  const float batteryVoltageV = voltageOnPinV * VOLTAGE_DIVIDER_RATIO * VOLTAGE_CALIBRATION_MULTIPLIER;
+  const int batteryPercent = estimateBatteryPercent2S(batteryVoltageV);
+
+  static uint32_t lastDebugMs = 0;
+  if (millis() - lastDebugMs >= 5000) {
+    lastDebugMs = millis();
+    Serial.printf("[ADC] IO%d pin=%lu mV (%.3f V) -> baterie: %.2f V (%d%%) (delic=%.3f, kal=%.3f)\n",
+                  VOLTAGE_PIN,
+                  pinMillivolts,
+                  voltageOnPinV,
+                  batteryVoltageV,
+                  batteryPercent,
+                  VOLTAGE_DIVIDER_RATIO,
+                  VOLTAGE_CALIBRATION_MULTIPLIER);
+  }
+  char buf[120];
+  snprintf(buf, sizeof(buf), "{\"batteryVoltageV\":%.2f,\"batteryPercent\":%d,\"voltageV\":%.3f,\"rawMv\":%lu}",
+           batteryVoltageV,
+           batteryPercent,
+           voltageOnPinV,
+           pinMillivolts);
+  request->send(200, "application/json; charset=utf-8", buf);
+}
+
+void handleStatsGet(AsyncWebServerRequest* request) {
+  request->send(200, "application/json; charset=utf-8", getDistanceStatsJson());
+}
+
+void handleStatsReset(AsyncWebServerRequest* request) {
+  distanceStats.totalKm = 0.0f;
+  distanceStats.leftKm = 0.0f;
+  distanceStats.rightKm = 0.0f;
+  saveDistanceStats();
+  request->send(200, "application/json; charset=utf-8", getDistanceStatsJson());
+}
+
 void handleServo(AsyncWebServerRequest* request) {
   if (!request->hasParam("angle")) {
     request->send(400, "text/plain", "Missing angle parameter");
@@ -768,9 +929,22 @@ void initTankControl() {
     Serial.println("0. CHYBA: Nepodarilo se otevrit Preferences.");
   } else {
     loadControlSettings();
+    loadDistanceStats();
   }
 
   Serial.println("1. Nastavuji PWM a piny motoru/servosystemu...");
+  analogReadResolution(12);
+  // 11 dB dava nejspolehlivejsi vysledky pro analogReadMilliVolts na ESP32.
+  analogSetAttenuation(ADC_11db);
+  analogSetPinAttenuation(VOLTAGE_PIN, ADC_11db);
+  pinMode(VOLTAGE_PIN, INPUT);
+  Serial.printf("[INIT] ADC pin IO%d, atenuace=11db, res=12bit\n", VOLTAGE_PIN);
+  // Zahřívací čtení
+  for (int warm = 0; warm < 10; ++warm) {
+    (void)analogReadMilliVolts(VOLTAGE_PIN);
+    delayMicroseconds(50);
+  }
+
   ledcSetup(MOTOR_A_IN1_CH, PWM_FREQ, PWM_RESOLUTION_BITS);
   ledcSetup(MOTOR_A_IN2_CH, PWM_FREQ, PWM_RESOLUTION_BITS);
   ledcSetup(MOTOR_B_IN1_CH, PWM_FREQ, PWM_RESOLUTION_BITS);
@@ -832,6 +1006,11 @@ void initTankControl() {
   }
 
   Serial.println("5. Startuji WebServer a WebSocket...");
+  // Inicializační čtení ADC pro stabilizaci
+  for (int i = 0; i < 5; ++i) {
+    (void)analogReadMilliVolts(VOLTAGE_PIN);
+    delay(5);
+  }
   ws.onEvent(handleWsEvent);
   server.addHandler(&ws);
   server.on("/", HTTP_GET, handleRoot);
@@ -839,6 +1018,9 @@ void initTankControl() {
   server.on("/led", HTTP_GET, handleLed);
   server.on("/settings", HTTP_GET, handleSettingsGet);
   server.on("/settings", HTTP_POST, handleSettingsPost);
+  server.on("/adc", HTTP_GET, handleAdc);
+  server.on("/stats", HTTP_GET, handleStatsGet);
+  server.on("/stats/reset", HTTP_POST, handleStatsReset);
   server.begin();
   Serial.println("   WebServer bezi.");
   Serial.println("--- BOOT DOKONCEN ---\n");
@@ -900,6 +1082,12 @@ void loop() {
 
   updateReverseBeep(now);
   updateMotorOutputs(now);
+  updateDistanceStats(now);
+
+  if (now - lastStatsSaveMs >= STATS_SAVE_INTERVAL_MS) {
+    saveDistanceStats();
+    lastStatsSaveMs = now;
+  }
   
   // Debug vypis zive kapacity RAM pro detekci uniku nebo preteceni
   static uint32_t lastMemDebug = 0;

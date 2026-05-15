@@ -101,6 +101,14 @@ h1{font-size:1.45rem;letter-spacing:.04em;margin:0}
 .save-btn:hover{transform:translateY(-1px);box-shadow:0 18px 34px rgba(25,67,128,.34),inset 0 1px 0 rgba(255,255,255,.5);filter:saturate(1.05)}
 .save-btn:active{transform:translateY(0);box-shadow:0 10px 18px rgba(25,67,128,.26),inset 0 1px 0 rgba(255,255,255,.4)}
 .save-btn:disabled{opacity:.65;cursor:wait;transform:none;filter:none;box-shadow:0 10px 22px rgba(25,67,128,.22),inset 0 1px 0 rgba(255,255,255,.3)}
+.stats-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.stats-card{padding:12px 10px;border:1px solid rgba(151,181,216,.14);border-radius:14px;background:rgba(17,27,42,.48);display:grid;gap:4px;text-align:center}
+.stats-card strong{font-size:.78rem;color:#9db2cb;font-weight:600;letter-spacing:.02em}
+.stats-card span{font-size:1.08rem;color:#f4f8fc;font-weight:700}
+.stats-note{margin:0;color:#9db2cb;font-size:.83rem;line-height:1.4;text-align:left}
+.secondary-btn{width:100%;border:1px solid rgba(245,190,164,.38);border-radius:14px;padding:11px 14px;background:linear-gradient(135deg,#f7e0cf 0%,#f0b386 40%,#d57e50 100%);color:#301208;font-size:.94rem;font-weight:700;letter-spacing:.01em;cursor:pointer;box-shadow:0 10px 20px rgba(50,16,8,.2)}
+.secondary-btn:disabled{opacity:.65;cursor:wait}
+@media (max-width:640px){.stats-grid{grid-template-columns:1fr}}
 .toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,18px);padding:12px 16px;border-radius:14px;background:rgba(8,17,29,.94);border:1px solid rgba(179,204,234,.24);color:#eef6ff;box-shadow:0 14px 36px rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:opacity .22s ease,transform .22s ease;z-index:20;max-width:min(92vw,420px);text-align:center}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 .toast.success{background:linear-gradient(135deg,rgba(31,76,48,.96),rgba(20,44,30,.96));border-color:rgba(127,220,156,.38)}
@@ -121,6 +129,7 @@ h1{font-size:1.45rem;letter-spacing:.04em;margin:0}
 	<div class="readout">
 		<div class="chip">X: <span id="xVal">0</span></div>
 		<div class="chip">Y: <span id="yVal">0</span></div>
+		<div class="chip" title="Napětí baterie před děličem 100k/33k">U bat: <span id="voltageVal">&#8212;</span> V | <span id="batteryPctVal">&#8212;</span>%</div>
 	</div>
 	<div class="control-block">
 		<div class="control-group">
@@ -249,6 +258,25 @@ h1{font-size:1.45rem;letter-spacing:.04em;margin:0}
 			</div>
 		</div>
 	</details>
+	<details class="settings-menu" id="statsMenu">
+		<summary>
+			<span class="settings-summary-spacer" aria-hidden="true"></span>
+			<span class="settings-title">
+				<span>Statistika</span>
+				<span class="settings-gear" aria-hidden="true">&#128202;</span>
+			</span>
+			<span class="settings-chevron" aria-hidden="true">&#94;</span>
+		</summary>
+		<div class="settings-panel">
+			<div class="stats-grid">
+				<div class="stats-card"><strong>Tank celkem</strong><span id="statsTotalKm">0.000 km</span></div>
+				<div class="stats-card"><strong>Levý pás</strong><span id="statsLeftKm">0.000 km</span></div>
+				<div class="stats-card"><strong>Pravý pás</strong><span id="statsRightKm">0.000 km</span></div>
+			</div>
+			<p class="stats-note" id="statsMeta">Odhad podle plynu a max. 300 ot/min při plném výkonu.</p>
+			<button id="statsResetBtn" class="secondary-btn" type="button">Vynulovat statistiku</button>
+		</div>
+	</details>
 </div>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 <script>
@@ -259,6 +287,8 @@ const settingsMenuEl = document.querySelector('.settings-menu');
 const toastEl = document.getElementById('toast');
 const xValEl = document.getElementById('xVal');
 const yValEl = document.getElementById('yVal');
+const voltageValEl = document.getElementById('voltageVal');
+const batteryPctValEl = document.getElementById('batteryPctVal');
 const ledColorInputEl = document.getElementById('ledColorInput');
 const ledColorHexEl = document.getElementById('ledColorHex');
 const sensitivityRangeEl = document.getElementById('sensitivityRange');
@@ -279,6 +309,11 @@ const invertLeftMotorEl = document.getElementById('invertLeftMotor');
 const invertRightMotorEl = document.getElementById('invertRightMotor');
 const settingsStatusEl = document.getElementById('settingsStatus');
 const saveSettingsBtnEl = document.getElementById('saveSettingsBtn');
+const statsTotalKmEl = document.getElementById('statsTotalKm');
+const statsLeftKmEl = document.getElementById('statsLeftKm');
+const statsRightKmEl = document.getElementById('statsRightKm');
+const statsMetaEl = document.getElementById('statsMeta');
+const statsResetBtnEl = document.getElementById('statsResetBtn');
 const servoControls = [
 	{
 		pin: 18,
@@ -681,9 +716,77 @@ setInterval(() => {
 	const shouldKeepAlive = activePointer !== null || currentX !== 0 || currentY !== 0;
 	sendControl(shouldKeepAlive);
 }, 100);
+async function pollVoltage() {
+	try {
+		const response = await fetch('/adc', { cache: 'no-store' });
+		if (!response.ok) throw new Error('adc_failed');
+		const data = await response.json();
+		const batteryVoltage = Number(data.batteryVoltageV ?? data.voltageV);
+		const batteryPercent = Number(data.batteryPercent);
+		voltageValEl.textContent = Number.isFinite(batteryVoltage) ? batteryVoltage.toFixed(2) : '??';
+		batteryPctValEl.textContent = Number.isFinite(batteryPercent) ? String(Math.round(batteryPercent)) : '--';
+	} catch {
+		voltageValEl.textContent = '??';
+		batteryPctValEl.textContent = '--';
+	}
+}
+
+function renderStats(stats) {
+	const totalKm = Number(stats.totalKm);
+	const leftKm = Number(stats.leftKm);
+	const rightKm = Number(stats.rightKm);
+	const trackDiameterMm = Number(stats.trackDiameterMm);
+	const maxTrackRpm = Number(stats.maxTrackRpm);
+
+	statsTotalKmEl.textContent = Number.isFinite(totalKm) ? `${totalKm.toFixed(3)} km` : '--';
+	statsLeftKmEl.textContent = Number.isFinite(leftKm) ? `${leftKm.toFixed(3)} km` : '--';
+	statsRightKmEl.textContent = Number.isFinite(rightKm) ? `${rightKm.toFixed(3)} km` : '--';
+
+	if (Number.isFinite(trackDiameterMm) && Number.isFinite(maxTrackRpm)) {
+		statsMetaEl.textContent = `Odhad dle plynu. Prumer pasu ${trackDiameterMm.toFixed(0)} mm, maximum ${maxTrackRpm.toFixed(0)} ot/min.`;
+	}
+}
+
+async function loadStats() {
+	try {
+		const response = await fetch('/stats', { cache: 'no-store' });
+		if (!response.ok) throw new Error('stats_failed');
+		const stats = await response.json();
+		renderStats(stats);
+	} catch {
+		statsTotalKmEl.textContent = '--';
+		statsLeftKmEl.textContent = '--';
+		statsRightKmEl.textContent = '--';
+	}
+}
+
+async function resetStats() {
+	statsResetBtnEl.disabled = true;
+	try {
+		const response = await fetch('/stats/reset', { method: 'POST' });
+		if (!response.ok) throw new Error('stats_reset_failed');
+		const stats = await response.json();
+		renderStats(stats);
+		showToast('Statistika byla vynulovana', 'info');
+	} catch {
+		showToast('Nepodarilo se vynulovat statistiku', 'error');
+	} finally {
+		statsResetBtnEl.disabled = false;
+	}
+}
+
+statsResetBtnEl.addEventListener('click', () => {
+	if (!window.confirm('Opravdu chcete vynulovat statistiku najetych kilometru?')) return;
+	void resetStats();
+});
+
 updateServoVisibility();
 setConnectionState(false);
 void loadSettings();
+void pollVoltage();
+setInterval(() => { void pollVoltage(); }, 2000);
+void loadStats();
+setInterval(() => { void loadStats(); }, 2000);
 connect();
 </script>
 </body>
